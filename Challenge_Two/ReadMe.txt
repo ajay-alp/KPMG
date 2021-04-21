@@ -1,0 +1,2 @@
+When executing the script on an instance, if no parameter name is supplied, it will retrieve all metadata categories.
+If a metadata category is supplied as a parameter, it will retrieve that specific category.

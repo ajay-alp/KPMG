@@ -1,0 +1,87 @@
+Using AWS
+
+Create 3 tiers:
+1. Web / Presentation tier
+2. Business / Application tier
+3. Data tier
+
+
+1. Setup a Virtual Private Cloud (VPC)
+	- Your logical space where you create the required resources
+		
+		aws ec2 create-vpc --cidr-block 10.0.0.0/16
+
+2. Setup the Internet Gateway
+	- For the instances (EC2) to be able to communicate with the internet
+	
+		aws ec2 create-internet-gateway
+	
+	a. Assign this gateway to the previously created VPC
+	
+		aws ec2 attach-internet-gateway --vpc-id VPC_Id_From_Step1 --internet-gateway-id IG_Id_From_Step2
+	
+3. Create Subnets
+	- So that we can group instances within our VPC
+	
+	a. Create public subnet for front-end instances to deal with traffic directly to the Internet (Web/Presentation tier)
+		
+		aws ec2 create-subnet --vpc-id VPC_Id_From_Step1 --cidr-block 10.0.1.0/24
+		
+	b. Create private subnets for back-end instances at the Business/Application tier
+	
+		aws ec2 create-subnet --vpc-id VPC_Id_From_Step1 --cidr-block 10.0.2.0/24
+
+4. Create Route Table
+	- To determine data flow in our network
+	
+	a. Create a public Route Table for the public subnet 
+	
+		aws ec2 create-route-table --vpc-id VPC_Id_From_Step1
+		
+	b. Create a private Route Table for the private subnet
+	
+		aws ec2 create-route-table --vpc-id VPC_Id_From_Step1
+		
+	c. Associate public Route Table with the public subnet
+	
+		aws ec2 associate-route-table  --subnet-id SUBNET_Id_From_Step3a --route-table-id ROUTETABLE_Id_From_4a
+		
+	d. Associate private Route Table with the private subnet
+	
+		aws ec2 associate-route-table  --subnet-id SUBNET_Id_From_Step3b --route-table-id ROUTETABLE_Id_From_4b
+
+5. Create a NAT gateway
+	- To allow for the private subnet instances to access the internet
+	
+		aws ec2 create-nat-gateway --subnet-id SUBNET_Id_From_Step3b --allocation-id ELASTIC_IP_Id
+		
+	a. Create the NAT gateway and then edit the private Route Table to use this NAT.
+	
+6. Create Elastic Load Balancers (ELB) and Security Group (SG)
+	- So that traffic is distributed to the EC2 instances
+	
+	a. Create a Application Load Balancer for the the internet facing instances and configure relevant ports (80, 443 for Http and Https traffic as an example)
+	
+		aws ec2 create-security-group --group-name My_Security_Group --description "New Security group" --vpc-id VPC_Id_From_Step1
+		(Also setup ingress and egress authorisation on required ports)
+		
+		aws elb create-load-balancer --load-balancer-name my-load-balancer --listeners "Protocol=HTTP,LoadBalancerPort=80,InstanceProtocol=HTTP,InstancePort=80" --subnets SUBNET_Id_From_Step3a --security-groups SECURITY_GROUP_Id_From_PreviousCommand
+		
+	b. Create a Application Load Balancer for the internal instances and only configure the port that the back-end needs (eg: 1001) and allow this port on the 		front-end Security Group.
+
+	c. Create a Target Group that the Auto Scaling Group will use (which will be created next) for the front-end
+	
+7. Create a Auto Scaling Group (ASG)
+	- Instances of the same kind will be grouped here, and the group will scale up or down depending on the scaling configuration
+	
+	For the front-end tier
+	a. Create a Launch Configuration using an appropriate Amazon Machine Image and selecting the appropriate instance type.
+	b. Configure the scaling policies eg, Maintain a 55% average CPU | Minimum 2 EC2 instances | Maximum 5 EC2 instances
+	
+	Repeat the steps for the back-end tier.
+	
+8. Create access for the private subnet
+	- A EC2 instance (Bastion) in public subnet to provide access to instances in the private subnet (so that you can connect to the private subnet when needed).
+	
+9. Create the Data tier
+
